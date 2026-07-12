@@ -41,7 +41,7 @@ export function Sidebar({ items, activeKey, onSelect, variant, title = 'Centsibl
     <View style={[styles.container, { backgroundColor: s.bg }]}>
       {/* Logo / Title */}
       <View style={styles.header}>
-        <Text style={[styles.logo, { color: s.titleColor }]}>🐷</Text>
+        <Text style={[styles.logo, { color: s.titleColor }]}>🫙</Text>
         <Text style={[styles.title, { color: s.titleColor }]}>{title}</Text>
       </View>
 

@@ -65,6 +65,8 @@ export interface Transaction {
   choreCompletionId?: string;
   /** True when created while device was offline */
   isOffline?: boolean;
+  /** True for parent_adjustment deductions */
+  isDebit?: boolean;
 }
 
 // ─── Chores ──────────────────────────────────────────────────────────────────
@@ -124,8 +126,8 @@ export interface RecurringDeposit {
   id: string;
   householdId: string;
   memberId: string;
-  amount: number;
-  account: AccountType;
+  /** Per-account allocation amounts (each may be 0) */
+  allocations: { spend: number; save: number; give: number };
   description: string;
   frequency: 'weekly' | 'biweekly' | 'monthly';
   nextDate: Date;

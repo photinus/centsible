@@ -11,7 +11,7 @@ import { TextInput } from '../../components/shared/TextInput';
 import { Button } from '../../components/shared/Button';
 import { Colors, Spacing, Radius, Typography } from '../../constants/theme';
 
-const PARENT_AVATARS = ['👨', '👩', '👨‍🦱', '👩‍🦱', '👴', '👵', '🧑', '👱'];
+const PARENT_AVATARS = ['👨', '👩', '👨‍🦱', '👩‍🦱', '👴', '👵', '🧑', '👱', '🦆'];
 
 export default function SetupScreen() {
   const insets = useSafeAreaInsets();

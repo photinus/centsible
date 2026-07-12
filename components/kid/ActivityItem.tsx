@@ -20,7 +20,7 @@ interface ActivityItemProps {
 
 export function ActivityItem({ transaction: tx }: ActivityItemProps) {
   const cfg = TYPE_CONFIG[tx.type] ?? { emoji: '💵', bgColor: Colors.appBackground };
-  const isDebit = tx.type === 'withdrawal' || tx.type === 'goal_contribution';
+  const isDebit = tx.type === 'withdrawal' || tx.type === 'goal_contribution' || !!tx.isDebit;
   const amountColor = isDebit ? Colors.denied : Colors.approved;
   const sign = isDebit ? '-' : '+';
 

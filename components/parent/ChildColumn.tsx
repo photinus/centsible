@@ -11,9 +11,10 @@ interface ChildColumnProps {
   goals: Goal[];
   recentTransactions: Transaction[];
   onEditGoal: (goal: Goal) => void;
+  onViewTransactions?: (member: Member) => void;
 }
 
-export function ChildColumn({ member, goals, recentTransactions, onEditGoal }: ChildColumnProps) {
+export function ChildColumn({ member, goals, recentTransactions, onEditGoal, onViewTransactions }: ChildColumnProps) {
   const total =
     (member.accounts.spend ?? 0) +
     (member.accounts.save ?? 0) +
@@ -56,6 +57,13 @@ export function ChildColumn({ member, goals, recentTransactions, onEditGoal }: C
       {goals.filter((g) => g.isActive).map((goal) => (
         <GoalCard key={goal.id} goal={goal} onEdit={onEditGoal} compact />
       ))}
+
+      {/* Transactions link */}
+      {onViewTransactions && (
+        <TouchableOpacity style={styles.txLink} onPress={() => onViewTransactions(member)} activeOpacity={0.7}>
+          <Text style={styles.txLinkText}>View Transactions →</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -126,5 +134,15 @@ const styles = StyleSheet.create({
   accountsRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
+  },
+  txLink: {
+    alignSelf: 'flex-end',
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  txLinkText: {
+    ...Typography.body,
+    color: Colors.secureBlue,
+    fontWeight: '600',
   },
 });

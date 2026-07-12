@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHousehold } from '../../hooks/useHousehold';
 import { useAuth } from '../../hooks/useAuth';
 import { useDataStore } from '../../store/dataStore';
 import { TransactionActionCard, ChoreActionCard } from '../../components/parent/ActionCard';
+import { ChildTransactionModal } from '../../components/parent/ChildTransactionModal';
+import type { Member } from '../../types';
 import { SparkLine } from '../../components/shared/SparkLine';
 import { Colors, Spacing, Radius, Typography, Shadows } from '../../constants/theme';
 import {
@@ -29,6 +31,7 @@ export default function ParentDashboard() {
   const [pendingCompletions, setPendingCompletions] = useState<import('../../types').ChoreCompletion[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [txModalMember, setTxModalMember] = useState<Member | null>(null);
 
   // Load pending items on mount
   React.useEffect(() => {
@@ -150,6 +153,7 @@ export default function ParentDashboard() {
   const greeting = getGreeting();
 
   return (
+    <>
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}
@@ -216,16 +220,24 @@ export default function ParentDashboard() {
           {allMembers.filter((m) => m.role === 'kid').map((kid) => {
             const total = (kid.accounts.spend ?? 0) + (kid.accounts.save ?? 0) + (kid.accounts.give ?? 0);
             return (
-              <View key={kid.id} style={styles.summaryCard}>
+              <TouchableOpacity key={kid.id} style={styles.summaryCard} onPress={() => setTxModalMember(kid)} activeOpacity={0.75}>
                 <Text style={styles.summaryAvatar}>{kid.avatarEmoji}</Text>
                 <Text style={styles.summaryName}>{kid.name}</Text>
                 <Text style={styles.summaryTotal}>${total.toFixed(2)}</Text>
-              </View>
+                <Text style={styles.summaryLink}>Transactions →</Text>
+              </TouchableOpacity>
             );
           })}
         </View>
       </View>
     </ScrollView>
+
+    <ChildTransactionModal
+      member={txModalMember}
+      visible={txModalMember !== null}
+      onClose={() => setTxModalMember(null)}
+    />
+    </>
   );
 }
 
@@ -264,4 +276,5 @@ const styles = StyleSheet.create({
   summaryAvatar: { fontSize: 32 },
   summaryName: { ...Typography.h4 },
   summaryTotal: { ...Typography.amountSm, color: Colors.growthGreen },
+  summaryLink: { ...Typography.bodySmall, color: Colors.secureBlue, fontWeight: '600' },
 });

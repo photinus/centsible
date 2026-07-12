@@ -37,7 +37,9 @@ export default function SettingsScreen() {
   const [deposits, setDeposits] = useState<RecurringDeposit[]>([]);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositKid, setDepositKid] = useState('');
-  const [depositAmt, setDepositAmt] = useState('');
+  const [depositSpend, setDepositSpend] = useState('');
+  const [depositSave, setDepositSave] = useState('');
+  const [depositGive, setDepositGive] = useState('');
   const [depositFreq, setDepositFreq] = useState<RecurringDeposit['frequency']>('weekly');
   const [depositDesc, setDepositDesc] = useState('Allowance');
   const [depositLoading, setDepositLoading] = useState(false);
@@ -83,24 +85,25 @@ export default function SettingsScreen() {
   }
 
   async function handleAddDeposit() {
-    const amt = parseFloat(depositAmt);
     if (!depositKid) { setDepositError('Select a child.'); return; }
-    if (!amt || amt <= 0) { setDepositError('Enter a valid amount.'); return; }
+    const spend = parseFloat(depositSpend) || 0;
+    const save  = parseFloat(depositSave)  || 0;
+    const give  = parseFloat(depositGive)  || 0;
+    if (spend + save + give <= 0) { setDepositError('Enter an amount for at least one account.'); return; }
     setDepositLoading(true);
     setDepositError('');
     try {
       await createRecurringDeposit({
         householdId: session!.householdId,
         memberId: depositKid,
-        amount: amt,
-        account: 'spend',
+        allocations: { spend, save, give },
         description: depositDesc || 'Allowance',
         frequency: depositFreq,
         nextDate: addDays(new Date(), depositFreq === 'weekly' ? 7 : depositFreq === 'biweekly' ? 14 : 30),
       });
       await loadDeposits();
       setShowDepositModal(false);
-      setDepositAmt('');
+      setDepositSpend(''); setDepositSave(''); setDepositGive('');
       setDepositKid('');
     } catch {
       setDepositError('Could not save. Try again.');
@@ -219,11 +222,19 @@ export default function SettingsScreen() {
           ) : (
             deposits.map((d) => {
               const kidName = allMembers.find((m) => m.id === d.memberId)?.name ?? 'Unknown';
+              const { spend, save, give } = d.allocations;
+              const total = spend + save + give;
+              const parts = [
+                spend > 0 && `$${spend.toFixed(2)} Spend`,
+                save  > 0 && `$${save.toFixed(2)} Save`,
+                give  > 0 && `$${give.toFixed(2)} Give`,
+              ].filter(Boolean).join(' · ');
               return (
                 <View key={d.id} style={styles.depositRow}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.depositTitle}>{kidName} — {d.description}</Text>
-                    <Text style={styles.depositMeta}>${d.amount.toFixed(2)} {d.frequency}</Text>
+                    <Text style={styles.depositMeta}>${total.toFixed(2)}/wk · {parts}</Text>
+                    <Text style={styles.depositMeta}>{d.frequency} · next {d.nextDate.toLocaleDateString()}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDeleteDeposit(d.id)}>
                     <Text style={styles.deleteText}>🗑</Text>
@@ -284,7 +295,21 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <TextInput label="Amount" prefix="$" value={depositAmt} onChangeText={setDepositAmt} keyboardType="decimal-pad" placeholder="5.00" containerStyle={styles.gap} />
+              <Text style={styles.fieldLabel}>Amount per account</Text>
+              <View style={styles.allocationRow}>
+                <View style={styles.allocationField}>
+                  <Text style={[styles.allocationLabel, { color: Colors.spendAccent }]}>Spend</Text>
+                  <TextInput prefix="$" value={depositSpend} onChangeText={setDepositSpend} keyboardType="decimal-pad" placeholder="0.00" />
+                </View>
+                <View style={styles.allocationField}>
+                  <Text style={[styles.allocationLabel, { color: Colors.saveAccent }]}>Save</Text>
+                  <TextInput prefix="$" value={depositSave} onChangeText={setDepositSave} keyboardType="decimal-pad" placeholder="0.00" />
+                </View>
+                <View style={styles.allocationField}>
+                  <Text style={[styles.allocationLabel, { color: Colors.giveAccent }]}>Give</Text>
+                  <TextInput prefix="$" value={depositGive} onChangeText={setDepositGive} keyboardType="decimal-pad" placeholder="0.00" />
+                </View>
+              </View>
               <TextInput label="Description" value={depositDesc} onChangeText={setDepositDesc} placeholder="Allowance" containerStyle={styles.gap} />
               <Text style={styles.fieldLabel}>Frequency</Text>
               <View style={styles.freqRow}>
@@ -341,6 +366,9 @@ const styles = StyleSheet.create({
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md },
   avatarBtn: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.appBackground, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   avatarBtnActive: { borderColor: Colors.growthGreen, backgroundColor: Colors.approvedBg },
+  allocationRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  allocationField: { flex: 1, gap: 4 },
+  allocationLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   kidPicker: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', marginBottom: Spacing.md },
   kidPickerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: Radius.md, backgroundColor: Colors.appBackground, borderWidth: 1.5, borderColor: Colors.border },
   kidPickerBtnActive: { borderColor: Colors.secureBlue, backgroundColor: '#EBF5FF' },

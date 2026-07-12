@@ -84,6 +84,7 @@ function docToTransaction(id: string, data: DocumentData): Transaction {
     approvedBy: data.approvedBy,
     choreCompletionId: data.choreCompletionId,
     isOffline: data.isOffline ?? false,
+    isDebit: data.isDebit ?? false,
   };
 }
 
@@ -136,12 +137,17 @@ function docToGoal(id: string, data: DocumentData): Goal {
 }
 
 function docToRecurringDeposit(id: string, data: DocumentData): RecurringDeposit {
+  // Support both old single-account docs and new allocations format
+  const allocations = data.allocations ?? {
+    spend: data.account === 'spend' ? (data.amount ?? 0) : 0,
+    save:  data.account === 'save'  ? (data.amount ?? 0) : 0,
+    give:  data.account === 'give'  ? (data.amount ?? 0) : 0,
+  };
   return {
     id,
     householdId: data.householdId,
     memberId: data.memberId,
-    amount: data.amount,
-    account: data.account as AccountType,
+    allocations,
     description: data.description,
     frequency: data.frequency,
     nextDate: toDate(data.nextDate),
@@ -331,6 +337,58 @@ export async function denyTransaction(
   });
 }
 
+export async function parentAdjustTransaction(params: {
+  householdId: string;
+  memberId: string;
+  amount: number;
+  isDebit: boolean;
+  account: AccountType;
+  description: string;
+  parentId: string;
+}): Promise<Transaction> {
+  const txRef = doc(collection(db, 'transactions'));
+  const memberRef = doc(db, 'members', params.memberId);
+  const memberSnap = await getDoc(memberRef);
+  if (!memberSnap.exists()) throw new Error('Member not found');
+
+  const accounts = memberSnap.data().accounts ?? { spend: 0, save: 0, give: 0 };
+  const delta = params.isDebit ? -params.amount : params.amount;
+  const newBalance = Math.max(0, (accounts[params.account] ?? 0) + delta);
+
+  const txData = {
+    householdId: params.householdId,
+    memberId: params.memberId,
+    type: 'parent_adjustment' as TransactionType,
+    amount: params.amount,
+    account: params.account,
+    description: params.description,
+    status: 'approved' as TransactionStatus,
+    isDebit: params.isDebit,
+    createdAt: serverTimestamp(),
+    approvedAt: serverTimestamp(),
+    approvedBy: params.parentId,
+  };
+
+  const batch = writeBatch(db);
+  batch.set(txRef, txData);
+  batch.update(memberRef, { [`accounts.${params.account}`]: newBalance });
+  await batch.commit();
+
+  return {
+    id: txRef.id,
+    householdId: params.householdId,
+    memberId: params.memberId,
+    type: 'parent_adjustment',
+    amount: params.amount,
+    account: params.account,
+    description: params.description,
+    status: 'approved',
+    createdAt: new Date(),
+    approvedAt: new Date(),
+    approvedBy: params.parentId,
+  };
+}
+
 export async function getTransactionsByMember(
   memberId: string,
   count = 50
@@ -339,6 +397,20 @@ export async function getTransactionsByMember(
     collection(db, 'transactions'),
     where('memberId', '==', memberId),
     where('status', '==', 'approved'),
+    orderBy('createdAt', 'desc'),
+    limit(count)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => docToTransaction(d.id, d.data()));
+}
+
+export async function getAllTransactionsByMember(
+  memberId: string,
+  count = 200
+): Promise<Transaction[]> {
+  const q = query(
+    collection(db, 'transactions'),
+    where('memberId', '==', memberId),
     orderBy('createdAt', 'desc'),
     limit(count)
   );
@@ -648,8 +720,7 @@ export function subscribeGoals(memberId: string, callback: (goals: Goal[]) => vo
 export async function createRecurringDeposit(params: {
   householdId: string;
   memberId: string;
-  amount: number;
-  account: AccountType;
+  allocations: { spend: number; save: number; give: number };
   description: string;
   frequency: RecurringDeposit['frequency'];
   nextDate: Date;
@@ -698,29 +769,38 @@ export async function processDueRecurringItems(householdId: string): Promise<voi
   for (const deposit of deposits) {
     if (deposit.nextDate > now) continue;
 
-    // Credit the member
     const memberRef = doc(db, 'members', deposit.memberId);
     const memberSnap = await getDoc(memberRef);
     if (!memberSnap.exists()) continue;
 
     const accounts = memberSnap.data().accounts ?? { spend: 0, save: 0, give: 0 };
-    batch.update(memberRef, {
-      [`accounts.${deposit.account}`]: (accounts[deposit.account] ?? 0) + deposit.amount,
+    const { allocations } = deposit;
+
+    // Apply each non-zero allocation to the member's accounts
+    const accountUpdates: Record<string, number> = {};
+    (['spend', 'save', 'give'] as const).forEach((acct) => {
+      const amt = allocations[acct] ?? 0;
+      if (amt <= 0) return;
+      accountUpdates[`accounts.${acct}`] = (accounts[acct] ?? 0) + amt;
+
+      // One transaction record per account bucket
+      const txRef = doc(collection(db, 'transactions'));
+      batch.set(txRef, {
+        householdId,
+        memberId: deposit.memberId,
+        type: 'allowance',
+        amount: amt,
+        account: acct,
+        description: deposit.description,
+        status: 'approved',
+        createdAt: serverTimestamp(),
+        approvedAt: serverTimestamp(),
+      });
     });
 
-    // Record transaction
-    const txRef = doc(collection(db, 'transactions'));
-    batch.set(txRef, {
-      householdId,
-      memberId: deposit.memberId,
-      type: 'allowance',
-      amount: deposit.amount,
-      account: deposit.account,
-      description: deposit.description,
-      status: 'approved',
-      createdAt: serverTimestamp(),
-      approvedAt: serverTimestamp(),
-    });
+    if (Object.keys(accountUpdates).length > 0) {
+      batch.update(memberRef, accountUpdates);
+    }
 
     // Advance nextDate
     const nextDate = advanceDate(deposit.nextDate, deposit.frequency);

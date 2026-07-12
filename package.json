@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
+    "dev": "expo start",
+    "start": "serve dist -s -l ${PORT:-3000}",
+    "android": "expo run:android",
     "web": "expo start --web",
+    "build": "expo export --platform web",
     "build:android": "eas build --platform android",
     "build:web": "expo export --platform web",
     "lint": "expo lint"
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "^19.0.0",
+    "serve": "^14.2.6",
     "typescript": "~5.3.3"
   },
   "overrides": {

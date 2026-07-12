@@ -55,7 +55,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Logo */}
-        <Text style={styles.logo}>🐷</Text>
+        <Text style={styles.logo}>🫙</Text>
         <Text style={styles.appName}>Centsible</Text>
         <Text style={styles.tagline}>Family banking made fun</Text>
 
